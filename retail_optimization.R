@@ -1,4 +1,3 @@
-library(dplyr)
 library(stringr)
 library(ggplot2)
 library(tidyverse)
@@ -14,16 +13,14 @@ retail <-read_csv('retail.csv')
 color<-read_csv('color.csv')
 color <- color[2:13]
 
-color$`Variable cost/unit`<-as.numeric(gsub("[\\$.]", "", color$`Variable cost/unit`))
-color$`Average Price`<-as.numeric(gsub("[\\$.]", "", color$`Average Price`))
-color$`Sales`<-as.numeric(gsub("[\\$,]", "", color$`Average Price`))
-color$`Inventory & Shelving/unit`<-as.numeric(gsub("[\\$]", "", color$`Inventory & Shelving/unit`))
-color$`Profit`<-as.numeric(gsub("[\\$,]", "", color$`Profit`))
+#parse string with $ to number
+color <- color %>%
+  mutate_if(~all(str_detect(.x,pattern = "^\\$.*")), ~parse_number(.x))
 
 week2num <- c("M"=1,"T"=2,"W"=3,"Th"=4,"F"=5,"Sa"=6,"Su"=7)
 week2num[color$`Day of the Week`]
 
-color<-color%>%
+color <- color %>%
   mutate(dow = week2num[color$`Day of the Week`])
 
 #data normalization-----
