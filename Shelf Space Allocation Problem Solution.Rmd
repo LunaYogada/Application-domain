@@ -1,0 +1,148 @@
+---
+title: "Shelf_Space_Allocation_Problem_Solution"
+author: "Kaki"
+date: "2018/4/20"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Problem statement
+You are provided a dataset which provides sales data for three different products sold in an apparel retailer. These products are three different types of jeans sold at this retailer - Colored denim, Wide Leg, High-Rise.
+You are required to determine an ideal shelf allocation across these three products. The total shelf spaces available are 60. You are required to provide at least 5 shelf spaces to each product. 
+
+#Problem frame
+
+Shelf space allocation problem consists of allocating the right amount of items to each product (also known as stock keeping unit - SKU) in the best position, taken into consideration the limited shelf space available on a retail store. It is a very complex problem that bears a similarity to Cutting and Packing problems, which, in general, are NP-hard.
+
+The variety of products to be placed on shelves is usually very large, particularly in supermarkets, which are the aim of this dissertation. Solving the problem for all products would require very high computational requirements. Due to this reason, products are usually grouped into categories, depending on their functional characteristics. The problem is then solved for each category.
+The Shelf Space Allocation Problem may vary widely depending on the company under consideration. This happens because many factors can change from one company to another, including the dimension of stores, the preferred strategy, the agreements with vendors, the criteria used for the store’s layout, among others. But in this case, since there is no other constraints, we can consider it as a simple optimazition problem. 
+
+# Problem solve sequence
+
+1. model linear regression of space and profit, set as the objective of linear programming/optimization.
+2. Solve the linear programming and get the optimized space.
+
+## Load package
+```{r}
+library(tidyverse)
+library(corrplot)
+library(stringr)
+library(dplyr)
+library(tidyverse)
+library(lpSolve)
+```
+
+## Load data
+```{r}
+retail <-read_csv('retail.csv',skip = 1,col_names = T) %>%
+  select(-c(1,34,35,36))
+
+retail <- retail %>%
+  mutate_if(~any(str_detect(.x,pattern = "^\\(.*\\)$")),
+            ~if_else(str_detect(.x,pattern = "^\\(.*\\)$"),
+                     str_c("$-",str_sub(.x,3,-2)),
+                     .x))  %>% 
+  mutate_if(~all(str_detect(.x,pattern = "^\\$.*")), ~parse_number(.x))
+
+all_column <- colnames(retail)[3:length(colnames(retail))]
+colnames(retail)[3:12] <- str_c(all_column[1:10],"_0")
+cols_to_gather <- colnames(retail)[3:length(colnames(retail))]
+base_col_name <- all_column[1:10]
+
+retail <- reshape(retail,
+        direction = "long",
+        varying = cols_to_gather,
+        timevar = "group",
+        times = c("Jeans - Colored denim","Jeans - Wide-leg","Jeans - High-rise"),
+        sep = "_",
+        idvar = "id") %>%
+  select(-id)
+
+row.names(retail) <- NULL
+#
+retail_selected <- retail %>%
+  select_if(~ !all(unique(.x) %in% c(0,1)))
+```
+
+correlation heatmap
+```{r}
+corrplot(cor(retail_selected %>% select_if(~is.numeric(.x))),method = "number")
+```
+
+It is clear to have following formula:
+
+Sales = Items sold * Average Price
+
+Average Price ~ f(clearance, Markdown, discount)
+
+Inventory & Shelving unit ~ g(Items sold)
+
+Profit = Sales - Items sold * (Variable cost/unit + Inventory cost/unit)
+
+Thus, Profit = Average Price \* Item sold - Item sold \*(Variable cost + g(Item sold))
+
+In order to make it linear and simplify the problem, I just make it as follows:
+
+Profit ~ Item sold
+
+So the problem of gain maximum profit turn into gain maximum Item sold
+
+## build linear regression model for Item sold
+
+```{r}
+retail_tib<-retail%>%
+  group_by(group)%>%
+  nest()%>%
+  mutate(model = map(data, ~lm(`Items Sold` ~ `Shelf Spaces` + `Average Price`+0,data = .x))) %>%
+  mutate(summary = map(model,summary))
+retail_tib$summary
+```
+## Frame linear optimization
+
+define space, price for Colored denim jeans to be S1, P1; for Wide-leg to be S2, P2; for High-rise to be S3, P3
+
+Item solds = 108.32S1 -33.46P1 + 54.253S2 -7.468P2 + 114.632S3 -10.55P3
+
+target: max Item solds
+
+contraint : S1 >=5 ; S2 >= 5, S3 >=5,
+            S1 + S2 +S3 <= 60
+            16 <= P1 <= 40
+            19 <= P2 <= 48
+            22 <= P3 <= 55
+          
+Model:
+
+```{r}
+constraint.matrix <- matrix(c(1,0,0,0,0,0,
+                              0,1,0,0,0,0,
+                              0,0,1,0,0,0,
+                              1,1,1,0,0,0,
+                              0,0,0,1,0,0,
+                              0,0,0,0,1,0,
+                              0,0,0,0,0,1,
+                              0,0,0,1,0,0,
+                              0,0,0,0,1,0,
+                              0,0,0,0,0,1),nrow = 10,byrow = T)
+
+constraint.rhs <- c(5,5,5,60,16,19,22,40,48,55)
+
+retail_lp<-lp(direction = "max",
+   objective.in = c(108.32, -33.46, 54.253, -7.468, 114.632, -10.55),
+   const.mat = constraint.matrix,
+   const.dir = c(">=",">=", ">=","<=", ">=",">=", ">=", "<=","<=","<="),
+   const.rhs = constraint.rhs
+   )
+retail_lp$solution
+retail_lp
+```
+
+# Solution 
+
+Allocate 50 shelf space to Colored denim jeans, 5 to Wide-leg jeans and High-rise jeans, respectively will gain maximun Item sold : 10670 jeans. 
+
+
