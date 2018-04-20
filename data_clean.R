@@ -12,13 +12,14 @@ retail <- retail %>%
 
 all_column <- colnames(retail)[3:length(colnames(retail))]
 colnames(retail)[3:12] <- str_c(all_column[1:10],"_0")
+cols_to_gather <- colnames(retail)[3:length(colnames(retail))]
+base_col_name <- all_column[1:10]
 
 retail <- reshape(retail,
         direction = "long",
-        varying=colnames(retail)[3:length(colnames(retail))],
+        varying = cols_to_gather,
         timevar = "group",
         times = c("Jeans - Colored denim","Jeans - Wide-leg","Jeans - High-rise"),
-        v.names = all_column[1:10],
         sep = "_",
         idvar = "id") %>%
   select(-id)
