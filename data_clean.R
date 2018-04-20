@@ -1,7 +1,9 @@
 library(tidyverse)
 library(corrplot)
 retail <-read_csv('retail.csv',skip = 1,col_names = T) %>%
-  select(-c(1,34,35,36))
+  select(-c(1,34,35,36)) %>%
+  rename(`Inventory & Shelving/unit_2`=`Inventory & Shelving Cost/unit`,
+         `Inventory & Shelving/unit_3`=`Inventory & Shelving/unit_1`)
 
 retail <- retail %>%
   mutate_if(~any(str_detect(.x,pattern = "^\\(.*\\)$")),
@@ -11,9 +13,7 @@ retail <- retail %>%
   mutate_if(~all(str_detect(.x,pattern = "^\\$.*")), ~parse_number(.x))
 
 all_column <- colnames(retail)[3:length(colnames(retail))]
-
-gather_column[1:10] <- str_c(all_column[1:10],"_0")
-colnames(retail)[3:length(colnames(retail))] <- gather_column
+colnames(retail)[3:12] <- str_c(all_column[1:10],"_0")
 
 retail <- reshape(retail,
         direction = "long",
@@ -21,7 +21,9 @@ retail <- reshape(retail,
         timevar = "group",
         times = c("Jeans - Colored denim","Jeans - Wide-leg","Jeans - High-rise"),
         v.names = all_column[1:10],
-        idvar = "id") %>%
+        sep = "_",
+        idvar = "id",
+        new.row.names = NULL) %>%
   select(-id)
 
 #
