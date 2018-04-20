@@ -1,0 +1,117 @@
+---
+title: "EDA"
+author: "Kaki"
+date: "2018年4月9日"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load package
+```{r}
+#install.packages('caret')
+#install.packages('klaR')
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(stringr)
+library(reshape2)
+library(caret)
+library(klaR)
+```
+
+#load data
+```{r}
+df <-read_csv('static_data_share.csv')
+```
+# clean data
+```{r}
+df$sales<-as.numeric(gsub("[\\$,]", "", df$`Actual Sales`))
+df$price <-as.numeric(gsub("[\\$]","", df$Average_Price))
+df$Coupon <-as.numeric(gsub("[\\,]", '', df$Coupons))
+df[is.na(df)]<-0
+```
+# transform GRP to impression
+```{r}
+df$TV_inpression<-df$`TV GRP`*1200000 
+```
+
+
+# correlation heatmap
+```{r}
+df_cor <-df[,c(3,5:11, 13:16)]
+cormat <- round(cor(df_cor),2)
+# Get lower triangle of the correlation matrix
+get_lower_tri<-function(cormat){
+  cormat[upper.tri(cormat)] <- NA
+  return(cormat)
+}
+# Get upper triangle of the correlation matrix
+get_upper_tri <- function(cormat){
+  cormat[lower.tri(cormat)]<- NA
+  return(cormat)
+}
+
+reorder_cormat <- function(cormat){
+  # Use correlation between variables as distance
+  dd <- as.dist((1-cormat)/2)
+  hc <- hclust(dd)
+  cormat <-cormat[hc$order, hc$order]
+}
+
+
+# Reorder the correlation matrix
+#cormat <- reorder_cormat(cormat)
+lower_tri <- get_lower_tri(cormat)
+
+# Melt the correlation matrix
+melted_cormat <- melt(lower_tri, na.rm = TRUE)
+# Create a ggheatmap
+
+ggheatmap<-ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile()+
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Pearson\nCorrelation") +
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1))+
+  coord_fixed()
+  
+
+# add text
+
+ggheatmap + 
+  geom_text(aes(Var1, Var2, label = value), color = "black", size = 3) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank(),
+    axis.ticks = element_blank(),
+    legend.justification = c(1, 0),
+    legend.position = c(0.6, 0.7),
+    legend.direction = "horizontal")+
+  guides(fill = guide_colorbar(barwidth = 7, barheight = 1,
+                               title.position = "top", title.hjust = 0.5))
+```
+# build linear regression
+```{r}
+train <- df_cor[1:21, ]
+test <- df_cor[22:30, ]
+y_test <-test$sales
+y_test
+model <-lm(`Sales Units` ~`Search Clicks`+ TV_inpression + `Price Reduction Units`+ `Trade Promotions Units`,data = train)
+summary(model)
+
+#pred.sales <- predict(model, newdata = test, interval = "prediction")
+#pred.sales
+
+#y_test
+#confusionMatrix(pred.sales[,1], y_test)
+
+```
+

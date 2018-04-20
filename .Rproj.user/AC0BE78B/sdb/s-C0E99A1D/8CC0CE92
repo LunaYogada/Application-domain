@@ -1,0 +1,21 @@
+{
+    "collab_server" : "",
+    "contents" : "library(dplyr)\nlibrary(stringr)\nlibrary(ggplot2)\nlibrary(tidyverse)\nlibrary(reshape2)\nlibrary(caret)\nlibrary(klaR)\nlibrary(standardize)\n\n#load data----\nretail <-read_csv('retail.csv')\n\n# clean data-----\ncolor<-read_csv('color.csv')\ncolor <- color[2:13]\n\ncolor$`Variable cost/unit`<-as.numeric(gsub(\"[\\\\$.]\", \"\", color$`Variable cost/unit`))\ncolor$`Average Price`<-as.numeric(gsub(\"[\\\\$.]\", \"\", color$`Average Price`))\ncolor$`Sales`<-as.numeric(gsub(\"[\\\\$,]\", \"\", color$`Average Price`))\ncolor$`Inventory & Shelving/unit`<-as.numeric(gsub(\"[\\\\$]\", \"\", color$`Inventory & Shelving/unit`))\ncolor$`Profit`<-as.numeric(gsub(\"[\\\\$,]\", \"\", color$`Profit`))\n\nweek2num <- c(\"M\"=1,\"T\"=2,\"W\"=3,\"Th\"=4,\"F\"=5,\"Sa\"=6,\"Su\"=7)\nweek2num[color$`Day of the Week`]\n\ncolor<-color%>%\n  mutate(dow = week2num[color$`Day of the Week`])\n\n#data normalization-----\nrescale01 <- function(x){(x-min(x))/(max(x)-min(x))}\ncolor %>% mutate_if(~is.numeric(.x),~rescale01(.x))\n\n\n\n#correlation heatmap------\ncolor_cor<-color[3:13]\ncormat <- round(cor(color_cor),2)\n# Get lower triangle of the correlation matrix\nget_lower_tri<-function(cormat){\n  cormat[upper.tri(cormat)] <- NA\n  return(cormat)\n}\n# Get upper triangle of the correlation matrix\nget_upper_tri <- function(cormat){\n  cormat[lower.tri(cormat)]<- NA\n  return(cormat)\n}\n\nreorder_cormat <- function(cormat){\n  # Use correlation between variables as distance\n  dd <- as.dist((1-cormat)/2)\n  hc <- hclust(dd)\n  cormat <-cormat[hc$order, hc$order]\n}\n\n\n# Reorder the correlation matrix\n#cormat <- reorder_cormat(cormat)\nlower_tri <- get_lower_tri(cormat)\n\n# Melt the correlation matrix\nmelted_cormat <- melt(lower_tri, na.rm = TRUE)\n# Create a ggheatmap\n\nggheatmap<-ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + \n  geom_tile()+\n  scale_fill_gradient2(low = \"blue\", high = \"red\", mid = \"white\", \n                       midpoint = 0, limit = c(-1,1), space = \"Lab\", \n                       name=\"Pearson\\nCorrelation\") +\n  theme_minimal()+ \n  theme(axis.text.x = element_text(angle = 45, vjust = 1, \n                                   size = 12, hjust = 1))+\n  coord_fixed()\n\n\n# add text\n\nggheatmap + \n  geom_text(aes(Var1, Var2, label = value), color = \"black\", size = 3) +\n  theme(\n    axis.title.x = element_blank(),\n    axis.title.y = element_blank(),\n    panel.grid.major = element_blank(),\n    panel.border = element_blank(),\n    panel.background = element_blank(),\n    axis.ticks = element_blank(),\n    legend.justification = c(1, 0),\n    legend.position = c(0.6, 0.7),\n    legend.direction = \"horizontal\")+\n  guides(fill = guide_colorbar(barwidth = 7, barheight = 1,\n                               title.position = \"top\", title.hjust = 0.5))\n\ncolor%>%\n  group_by(dow)%>%\n  summarise(avg_profit = mean(Profit))%>%\n  ggplot(aes(x =dow , y = avg_profit))+\n  geom_col()\n\n#linear model ---\n\nmodel <-lm(data = color, `Profit`~ `Inventory & Shelving/unit`+`Sales`+`Items Sold`+`Average Price`+`Clearance`+`Shelf Spaces`)\nsummary(model)\n\ndata <-data%>%\n\n\n",
+    "created" : 1524171374785.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "3536823130",
+    "id" : "8CC0CE92",
+    "lastKnownWriteTime" : 1524188290,
+    "last_content_update" : 1524188290283,
+    "path" : "E:/OneDrive/文档/UC DAVIS/course/442 adv stats/assignment/HW1/retail_optimization.R",
+    "project_path" : null,
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
