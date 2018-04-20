@@ -1,3 +1,4 @@
+library(dplyr)
 library(stringr)
 library(ggplot2)
 library(tidyverse)
@@ -8,20 +9,33 @@ library(standardize)
 
 #load data----
 retail <-read_csv('retail.csv')
+high <-read_csv("high.csv")
+wide<-read_csv("wide.csv")
 
 # clean data-----
 color<-read_csv('color.csv')
 color <- color[2:13]
 
-#parse string with $ to number
-color <- color %>%
-  mutate_if(~all(str_detect(.x,pattern = "^\\$.*")), ~parse_number(.x))
+
+color$`Variable cost/unit`<-as.numeric(gsub("[\\$.]", "", color$`Variable cost/unit`))
+color$`Average Price`<-as.numeric(gsub("[\\$.]", "", color$`Average Price`))
+color$`Sales`<-as.numeric(gsub("[\\$,]", "", color$`Average Price`))
+color$`Inventory & Shelving/unit`<-as.numeric(gsub("[\\$]", "", color$`Inventory & Shelving/unit`))
+color$`Profit`<-as.numeric(gsub("[\\$,]", "", color$`Profit`))
 
 week2num <- c("M"=1,"T"=2,"W"=3,"Th"=4,"F"=5,"Sa"=6,"Su"=7)
 week2num[color$`Day of the Week`]
 
-color <- color %>%
+color<-color%>%
   mutate(dow = week2num[color$`Day of the Week`])
+
+high <-high %>%
+  mutate_if(~all(str_detect(.x, "^\\$.*")), ~parse_number(.x))
+
+high %>% mutate_if(~str_detect(.x, "^\\($.*"), ~parse_number(.x))
+wide <-wide%>%
+  mutate_if(~all(str_detect(.x, "^//$.*")), ~parse_number(.x))
+
 
 #data normalization-----
 rescale01 <- function(x){(x-min(x))/(max(x)-min(x))}
@@ -95,10 +109,23 @@ color%>%
 
 #linear model ---
 
-model <-lm(data = color, `Profit`~ `Inventory & Shelving/unit`+`Sales`+`Items Sold`+`Average Price`+`Clearance`+`Shelf Spaces`)
+model1 <-lm(data = color, log(`Profit`)~ `Inventory & Shelving/unit`+`Sales`+`Items Sold`+`Average Price`+`Clearance`+log(`Shelf Spaces`))
 summary(model)
 
 data%>% mutate(shelf_log = log10(`Shelf Spaces`))
 
-plot(x =`Shelf Spaces`, y = Profit, data = color, log = color$`Shelf Spaces`)
+plot(x =color$`Shelf Spaces`, y = color$Profit,   log='xy')
+plot(x =color$`Items Sold`, y = color$Profit,   log='xy')
 
+model2<-lm(data = color, `Items Sold` ~ `Shelf Spaces` + `Average Price`)
+summary(model2)
+
+plot( data = color, `Items Sold` ~ `Average Price`, log = 'xy')
+plot( data = color, `Items Sold` ~ `Shelf Spaces` , log = 'x')
+
+
+model3<-lm(data = color, log(`Items Sold`) ~ `Shelf Spaces` + log(`Average Price`))
+summary(model3)
+
+model4<-lm(data = wide, log(`Items Sold`) ~ `Shelf Spaces` + log(`Average Price`))
+summary(model4)
